@@ -22,4 +22,4 @@ Set `SDL_RENDER_DRIVER=help` to list available renderers.
 
 ### Caveats
 
-Current SDL erroneously set `VkSwapchainCreateInfoKHR.minImageCount` to `VkSurfaceCapabilitiesKHR.minImageCount + 2`, resulting in a large frame queue. Use `gpu` renderer instead of `vulkan` to avoid this issue: `SDL_RENDER_DRIVER=gpu SDL_GPU_DRIVER=vulkan`.
+Current SDL Vulkan renderer erroneously set `VkSwapchainCreateInfoKHR.minImageCount` to `VkSurfaceCapabilitiesKHR.minImageCount + 2`, resulting in a large frame queue when using `VK_PRESENT_MODE_FIFO_KHR` (VSync). Use `gpu` renderer instead of `vulkan` to avoid this issue: `SDL_RENDER_DRIVER=gpu SDL_GPU_DRIVER=vulkan`.
