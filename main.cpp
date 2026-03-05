@@ -98,12 +98,27 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (!SDL_CreateWindowAndRenderer("Input Delay Visualizer", WINDOW_W, WINDOW_H,
-                                   SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &window, &renderer)) {
+  auto disp_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+  if (disp_scale == 0.0f) {
+    SDL_Log("Failed to get display content scale, defaulting to 1.0");
+    disp_scale = 1.0f;
+  }
+  SDL_Log("Display content scale: %.2f", disp_scale);
+
+  if (!SDL_CreateWindowAndRenderer("Input Delay Visualizer", (int)(WINDOW_W * disp_scale), (int)(WINDOW_H * disp_scale),
+                                   SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &window, &renderer)) {
     SDL_Log("CreateWindowAndRenderer failed: %s", SDL_GetError());
     SDL_Quit();
     return 1;
   }
+
+  auto window_scale = SDL_GetWindowDisplayScale(window);
+  auto window_density = SDL_GetWindowPixelDensity(window);
+  SDL_Log("Window display scale: %.2f, pixel density: %.2f", window_scale, window_density);
+
+  SDL_SetWindowSize(window, (int)(WINDOW_W * window_scale / window_density), (int)(WINDOW_H * window_scale / window_density));
+
+  SDL_ShowWindow(window);
 
   const char *renderer_name = SDL_GetRendererName(renderer);
   maybe_set_renderer_extra(renderer);
@@ -124,7 +139,7 @@ int main(int argc, char *argv[]) {
   int motion_estimate_frames = 0;
   float display_fps = 0.0f;
   int vsync_interval = 0;
-  int osd_scale = SDL_GetWindowPixelDensity(window);
+  int osd_scale = window_scale;
 
   static constexpr int FRAME_TIME_HISTORY = 60;
   uint64_t frame_times[FRAME_TIME_HISTORY] = {};
@@ -157,6 +172,7 @@ int main(int argc, char *argv[]) {
 
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
+      SDL_ConvertEventToRenderCoordinates(renderer, &ev);
       switch (ev.type) {
       case SDL_EVENT_QUIT:
         running = false;
@@ -259,9 +275,6 @@ int main(int argc, char *argv[]) {
     SDL_RenderClear(renderer);
 
     /* Scale logical mouse coords to the renderer's physical-pixel space. */
-    float density = SDL_GetWindowPixelDensity(window);
-    float px = mouse_pos.x * density;
-    float py = mouse_pos.y * density;
 
     /* Draw circle at cursor */
     if (mouse_down) {
@@ -269,7 +282,7 @@ int main(int argc, char *argv[]) {
     } else {
       SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
     }
-    draw_crosshair(renderer, px, py, 32 * osd_scale);
+    draw_crosshair(renderer, mouse_pos.x, mouse_pos.y, 32 * osd_scale);
 
     if (motion_estimate_frames > 0 && predictor.can_predict()) {
       // Prediction target: current frame start + N frame times into the future.
@@ -277,7 +290,7 @@ int main(int argc, char *argv[]) {
       // were timestamped), so adding N * avg_frame_time predicts N frames
       // ahead.
       auto predict = predictor.predict(last_begin_render_timestamp + motion_estimate_frames * avg_frame_time);
-      draw_circle(renderer, predict.x * density, predict.y * density, 5 * osd_scale);
+      draw_circle(renderer, predict.x, predict.y, 5 * osd_scale);
     }
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
