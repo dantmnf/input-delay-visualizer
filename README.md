@@ -19,3 +19,7 @@ With that in mind, you can know the delay of swapchain and OS composition by the
 Use `SDL_RENDER_DRIVER` environment variable to choose a renderer. Also `SDL_VIDEODRIVER` to check difference between `x11` and `wayland` on Linux.
 
 Set `SDL_RENDER_DRIVER=help` to list available renderers.
+
+### Caveats
+
+Current SDL erroneously set `VkSwapchainCreateInfoKHR.minImageCount` to `VkSurfaceCapabilitiesKHR.minImageCount + 2`, resulting in a large frame queue. Use `gpu` renderer instead of `vulkan` to avoid this issue: `SDL_RENDER_DRIVER=gpu SDL_GPU_DRIVER=vulkan`.

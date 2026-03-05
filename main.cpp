@@ -1,4 +1,5 @@
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_main.h>
@@ -52,6 +53,28 @@ const char *translate_vsync_mode(int mode) {
   }
 }
 
+static void maybe_set_renderer_extra(SDL_Renderer *renderer) {
+  if (!renderer)
+    return;
+  const char *renderer_name = SDL_GetRendererName(renderer);
+  if (!renderer_name)
+    return;
+  auto props = SDL_GetRendererProperties(renderer);
+  if (SDL_strcmp(renderer_name, "vulkan") == 0) {
+    if (props) {
+      auto swapchain_count = SDL_GetNumberProperty(props, SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER, 1);
+      SDL_Log("Vulkan swapchain image count: %" SDL_PRIs64, swapchain_count);
+    }
+  } else if (SDL_strcmp(renderer_name, "gpu") == 0) {
+    if (props) {
+      auto gpudev = (SDL_GPUDevice *)SDL_GetPointerProperty(props, SDL_PROP_RENDERER_GPU_DEVICE_POINTER, nullptr);
+      SDL_SetGPUAllowedFramesInFlight(gpudev, 2);
+      SDL_Log("GPU frames in flight set to 2");
+    }
+  }
+  SDL_SetRenderVSync(renderer, 1);
+}
+
 int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
@@ -64,7 +87,8 @@ int main(int argc, char *argv[]) {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
 
-  if (SDL_strcasecmp(SDL_GetHint(SDL_HINT_RENDER_DRIVER), "help") == 0) {
+  auto render_driver_hint = SDL_GetHint(SDL_HINT_RENDER_DRIVER);
+  if (render_driver_hint && SDL_strcasecmp(render_driver_hint, "help") == 0) {
     int num = SDL_GetNumRenderDrivers();
     SDL_Log("Available render drivers:");
     for (int i = 0; i < num; i++) {
@@ -75,21 +99,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (!SDL_CreateWindowAndRenderer("Input Delay Visualizer", WINDOW_W, WINDOW_H,
-                                   SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &window,
-                                   &renderer)) {
+                                   SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &window, &renderer)) {
     SDL_Log("CreateWindowAndRenderer failed: %s", SDL_GetError());
     SDL_Quit();
     return 1;
   }
 
   const char *renderer_name = SDL_GetRendererName(renderer);
-  if (SDL_strcmp(renderer_name, "vulkan") == 0) {
-    SDL_Log("setting swapchain image count to 2 for Vulkan renderer");
-    SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
-    if (props) {
-      SDL_SetNumberProperty(props, SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER, 2);
-    }
-  }
+  maybe_set_renderer_extra(renderer);
 
   int mouse_down = 0;
   SDL_FPoint mouse_pos = {0, 0};
